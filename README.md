@@ -91,3 +91,20 @@ Nous privilégions la stratégie canary ar il permet de controer progressivement
 
 ## LAB 2.0.0 -> 2.1.0 -> abort automatique -> 2.2.0
 
+POSTMORTEM
+
+La version 2.1.0 de TaskFlow a été déployée en Cananry avec Argo CD et Argo Rollouts.
+
+Pendant le déploiement, le test de charge automatique k6 a détecté un taux d'erreur HTTP  élevé donc Argo Rollouts a automatiquement interrompu le deploiement et conservé la version stable qui est 2.0.0.
+
+Chrnologie de déploiement : 
+
+1) Début de l'AnalysisRun sur la révision 6 (2.1.0)
+2) Fin du test k6 : échec des seuils
+3) Abort automatiquement du Rollout et retour aux pods stables 2.0.0
+4) Après le revert Git, déploiement de la version corrective 2.2.0
+5) AnalysisRun réussi et promotion automatiquement de 2.2.0 à 100% (révision 7)
+6) 
+Voir capture ci dessous : 
+
+![Déploiement Taskflow v2.2.0](images/revision7.png)
