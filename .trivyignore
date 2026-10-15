@@ -1,0 +1,17 @@
+# PSSI-R5 : exceptions temporaires. Image taskflow:2.2.0 publiée par le formateur,
+# non reconstructible depuis ce dépôt GitOps. Correctif réel : mettre à jour
+# starlette (>=1.3.1) et urllib3 (>=2.8.0) dans l'application, puis rebuild.
+# Acceptation validée en PR #18, réexamen avant le 2026-12-15.
+
+# starlette 0.41.3
+CVE-2025-62727 exp:2026-12-15
+CVE-2026-48818 exp:2026-12-15
+CVE-2026-54283 exp:2026-12-15
+
+# urllib3 1.26.20
+CVE-2025-66418 exp:2026-12-15
+CVE-2025-66471 exp:2026-12-15
+CVE-2026-21441 exp:2026-12-15
+CVE-2026-44431 exp:2026-12-15
+CVE-2026-97687 exp:2026-12-15
+CVE-2026-97689 exp:2026-12-15
