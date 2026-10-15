@@ -70,3 +70,24 @@ Naoile et Doria
    
    Pourquoi Git reverte ? : Ici ona utilisé Git reverte pour revenir a la version 1.0.0 après le déploiement de version 2.0.0. Cette action nous permet de revenir a une version precedente sasn supprimer l'hitorique de modification. Donc Argo cd recupere la nouvelle config et redeploye automatiquement la version 1.0.0 
 
+## LAB : Blue green / Canary
+
+Journal des déploiement : 
+
+1) Installation et configuration d'Argo CD et Roullouts
+2) Mise ne place de la stratégie Blue-Green
+3) Promote de cette stratégie (total 8pods)
+4) Mise en place de stratégie Canary (config des 4 réplicats par paliers 25, 50, 75 à 100 %)
+5) Déploiement Canary de la version 2.0.0 
+6) Promote de cette version
+7) Déploiement de version 2.1.0
+8) Observation de 40 requêtes HTTP ( Resultat: 3à reponses HTTP 200 sur 2.0.0, 2 sur 2.1.0 et 2 erreurs HTTP 500)
+9) Exécution de Kubectl argo rolouts pour abandonné la version 2.1.0
+10) COrrection configuration retour a l'image 2.0.0
+
+Blue green ou Canry pour Taskflow ?
+
+Nous privilégions la stratégie canary ar il permet de controer progressivement le risque de mise en production tout en maitrisant les ressources utilisées.
+
+## LAB 2.0.0 -> 2.1.0 -> abort automatique -> 2.2.0
+
