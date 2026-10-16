@@ -108,3 +108,68 @@ Chrnologie de déploiement :
 Voir capture ci dessous : 
 
 ![Déploiement Taskflow v2.2.0](images/revision7.png)
+
+
+## Lab C : la mini-PSSI en quality gates
+
+### 1. Tableau règle → contrôle → outil → preuve
+
+| Règle | Exigence | Contrôle  | Outil | Preuve |
+|---|---|---|---|---|
+| **R1** | Tag d'image explicite, jamais latest | Règle Rego deny si le tag est absent ou égal à `latest` | conftest | PR bloquée : `PSSI-R1`<br><img src="docs/captures/11-pr-non-conforme-bloquee.png" width="260"> |
+| **R2** | Images du registre `ghcr.io/9m7fjfpv9k-cyber/` uniquement | Règle Rego `deny` si l'image ne vient pas du registre autorisé | conftest | Même PR bloquée : `PSSI-R2`<br><img src="docs/captures/11-pr-non-conforme-bloquee.png" width="260"> |
+| **R3** | Limite de mémoire sur chaque conteneur | Règle Rego `deny` si resources.limits.memory est absent | conftest | Règle écrite dans policies/kubernetes.rego, PR #18<br><img src="docs/captures/02-regles-R3-R4-rego.png" width="260"> |
+| **R4** | Pods jamais en root (`runAsNonRoot: true`) | Règle Rego `deny` si `securityContext.runAsNonRoot` n'est pas `true` | conftest | Échec initial, puis succès après correctif, PR #18<br><img src="docs/captures/03-conftest-echec-R4.png" width="260"><br><img src="docs/captures/04-securitycontext-rollout.png" width="260"><br><img src="docs/captures/05-conftest-25-ok.png" width="260"> |
+| **R5** | Aucune vulnérabilité HIGH ou CRITICAL corrigeable | Scan Trivy avec `--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1` | Trivy | Scan rouge, puis vert avec exceptions datées<br><img src="docs/captures/06-workflow-trivy-rouge.png" width="260"><br><img src="docs/captures/07-trivy-etape-echec.png" width="260"><br><img src="docs/captures/09-pr18-checks-verts.png" width="260"> |
+
+
+### 2. Mise en œuvre
+
+**Étape 1 : état de départ.** Les règles R1 et R2 étaient déjà écrites dans `policies/kubernetes.rego`. R3 et R4 étaient à écrire : tant qu'elles n'existent pas, rien ne les vérifie. `conftest` affichait donc « tout passe » (15 tests, 0 échec).
+
+![conftest au départ : 15 tests, tous passent](docs/captures/01-conftest-etat-depart.png)
+
+**Étape 2 : écriture de R3 et R4** dans policies/kubernetes.rego, sur le modèle des règles R1 et R2.
+
+![Règles R3 et R4 dans kubernetes.rego](docs/captures/02-regles-R3-R4-rego.png)
+
+Le nombre de tests passe de 15 à 25, et notre Rollout **échoue sur R4** : il n'avait pas de securityContext.
+
+![conftest : échec sur R4 (25 tests, 24 passés, 1 échec)](docs/captures/03-conftest-echec-R4.png)
+
+**Étape 3 : correction de R4.** Ajout dans apps/taskflow/rollout.yaml, sous `spec.template.spec` :
+
+yaml
+      securityContext:
+        runAsNonRoot: true
+
+
+![securityContext ajouté au Rollout](docs/captures/04-securitycontext-rollout.png)
+
+Cela fonctionne parce que l'image déclare `USER 10001` : un identifiant **numérique**, que Kubernetes peut vérifier comme étant différent de root. Résultat : `25 tests, 25 passed, 0 failures`.
+
+![conftest : 25 tests, tous passent](docs/captures/05-conftest-25-ok.png)
+
+**Étape 4 : le workflow `.github/workflows/pssi.yml`**, copié depuis exemples/ci/pssi-github.yml (PR #18). Il s'exécute à chaque Pull Request vers main et comporte deux jobs :
+
+| Job (nom du check) | Ce qu'il fait |
+|---|---|
+| `PSSI manifests (conftest)` | Lance `conftest test apps/ --policy policies/` (R1 à R4) |
+| `PSSI images (Trivy)` | Scanne chaque image `ghcr.io/9m7fjfpv9k-cyber/...` listée dans `apps/` (R5) |
+
+Au premier passage, `conftest` est vert et Trivy est rouge :
+
+![Workflow PSSI : conftest vert, Trivy rouge](docs/captures/06-workflow-trivy-rouge.png)
+
+**Étape 5 : checks rendus obligatoires.** Dans le ruleset de main, j'ai ajouté PSSI manifests (conftest) et PSSI images (Trivy) comme Required status checks. Un check rouge qui n'est pas obligatoire n'est qu'un avis : c'est le ruleset qui transforme la règle en blocage.
+
+![Ruleset : les deux checks sont obligatoires](docs/captures/10-ruleset-checks-obligatoires.png)
+
+### 3. Preuve : une PR non conforme est bloquée
+
+La PR #19 (branche non-conforme) remplace l'image par nginx:latest. Le check `PSSI manifests (conftest)` est devenu rouge, les deux checks portent le badge Required, et le merge est resté bloqué :
+
+```
+FAIL - apps/taskflow/rollout.yaml - main - PSSI-R1 : le conteneur 'taskflow' utilise le tag latest (nginx:latest)
+FAIL - apps/taskflow/rollout.yaml - main - PSSI-R2 : l'image du conteneur 'taskflow' ne vient pas du registre autorisé (nginx:latest)
+25 tests, 23 passed, 0 warnings, 2 failures,
